@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="description"
+      content="A SQL reconciliation workbench with a reproducible synthetic payment ledger, settlement files and payout checks."
+    />
+    <title>Settlement review · Dhanush Battina</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to reconciliation</a>
+    <aside class="sidebar">
+      <a class="brand" href="./"
+        ><span class="brand-mark" aria-hidden="true">≋</span>
+        Settlement<br /><span class="brand-sub">review</span></a
+      >
+      <p class="sidebar-label">WORKBENCH</p>
+      <a class="nav-link selected" href="#main">Reconciliation</a>
+      <a class="nav-link" href="#issues"
+        >Issue queue <span id="nav-count">—</span></a
+      >
+      <a class="nav-link" href="#audit">Import history</a>
+      <div class="sidebar-bottom">
+        <span class="synthetic-dot">Synthetic data</span>
+        <p>
+          <span id="ledger-population">12,000 initial ledger payments</span
+          ><br />USD & EUR · January 2026
+        </p>
+        <a href="https://github.com/battina1999/settlement-reconciliation"
+          >Source & run instructions ↗</a
+        >
+        <p class="author">Built by Dhanush Battina</p>
+      </div>
+    </aside>
+    <main id="main">
+      <header class="page-heading">
+        <div>
+          <p class="eyebrow">PAYMENTS / RECONCILIATION</p>
+          <h1>Settlement reconciliation</h1>
+          <p class="lede">
+            Compare the merchant ledger, processor settlements and payout
+            headers.
+          </p>
+        </div>
+        <div class="period">
+          01–20 Jan 2026<span>Deterministic synthetic example</span>
+        </div>
+      </header>
+      <section class="delivery-bar" aria-label="Compare deliveries">
+        <div class="snapshot-tabs" role="group" aria-label="Delivery snapshot">
+          <button data-snapshot="0" class="active" aria-pressed="true">
+            Initial delivery
+          </button>
+          <button data-snapshot="1" aria-pressed="false">
+            After late corrections
+          </button>
+        </div>
+        <p id="delivery-note">Loading reconciliation…</p>
+      </section>
+      <div id="error" role="alert" hidden>
+        Could not load the demo. Reload the page or inspect the source
+        repository.
+      </div>
+      <div id="content" hidden>
+        <section class="metrics" aria-label="Reconciliation totals">
+          <article>
+            <span>Matched payments</span><strong id="matched">—</strong>
+            <p>Same merchant, currency, gross and fee</p>
+          </article>
+          <article>
+            <span>Open checks</span><strong id="open-checks">—</strong>
+            <p>Includes duplicate-row reviews</p>
+          </article>
+          <article>
+            <span>Quarantined records</span><strong id="quarantined">—</strong>
+            <p>Conflicting values at the latest revision</p>
+          </article>
+          <article>
+            <span>Source rows retained</span><strong id="raw-count">—</strong>
+            <p>Every imported row and its file reference</p>
+          </article>
+        </section>
+        <section class="panel balances" aria-labelledby="balances-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">MONEY CHECK</p>
+              <h2 id="balances-title">Amounts by currency</h2>
+            </div>
+            <span class="quiet">Clean current records · net after fees</span>
+          </div>
+          <div class="table-scroll">
+            <table class="balance-table">
+              <thead>
+                <tr>
+                  <th>Currency</th>
+                  <th>Ledger net</th>
+                  <th>Settlement net</th>
+                  <th>Settlement − ledger</th>
+                  <th>Payout net</th>
+                  <th>Payout − settlement</th>
+                </tr>
+              </thead>
+              <tbody id="balances"></tbody>
+            </table>
+          </div>
+          <p class="table-note">
+            Quarantined records are excluded. Each difference is computed within
+            one currency. Open checks can overlap, so their amounts should be
+            reviewed individually.
+          </p>
+        </section>
+        <section class="panel" id="issues" aria-labelledby="issues-title">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">INVESTIGATE</p>
+              <h2 id="issues-title">
+                Issue queue <span id="issue-total" class="count"></span>
+              </h2>
+            </div>
+            <button id="download" class="outline-button">
+              Download filtered CSV
+            </button>
+          </div>
+          <div class="filters">
+            <label class="search-label"
+              >Search<input
+                id="search"
+                type="search"
+                placeholder="Record, merchant or reason"
+            /></label>
+            <label
+              >Check<select id="type-filter">
+                <option value="">All checks</option>
+              </select></label
+            >
+            <label
+              >Merchant<select id="merchant-filter">
+                <option value="">All merchants</option>
+              </select></label
+            >
+            <label
+              >Currency<select id="currency-filter">
+                <option value="">All currencies</option>
+                <option>USD</option>
+                <option>EUR</option>
+              </select></label
+            >
+            <button id="reset" class="text-button">Reset</button>
+          </div>
+          <div class="table-scroll">
+            <table class="issue-table">
+              <thead>
+                <tr>
+                  <th>Check / source record</th>
+                  <th>Merchant</th>
+                  <th>Currency</th>
+                  <th>Expected net</th>
+                  <th>Observed net</th>
+                  <th>Difference</th>
+                  <th><span class="sr-only">Inspect</span></th>
+                </tr>
+              </thead>
+              <tbody id="issue-rows"></tbody>
+            </table>
+          </div>
+          <div class="pagination">
+            <p id="result-count" aria-live="polite"></p>
+            <div>
+              <button id="previous" class="outline-button">Previous</button
+              ><span id="page-count"></span
+              ><button id="next" class="outline-button">Next</button>
+            </div>
+          </div>
+        </section>
+        <section
+          class="panel audit-panel"
+          id="audit"
+          aria-labelledby="audit-title"
+        >
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">REPRODUCE</p>
+              <h2 id="audit-title">Import history</h2>
+            </div>
+            <span class="verified">✓ Replay verified</span>
+          </div>
+          <p>
+            The demo imports an initial delivery, applies late corrections, then
+            submits all six files again. The last run loads zero rows and
+            produces the same report.
+          </p>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Delivery</th>
+                  <th>Files loaded</th>
+                  <th>Rows loaded</th>
+                  <th>Record keys reconsidered</th>
+                  <th>Files skipped on replay</th>
+                </tr>
+              </thead>
+              <tbody id="audit-rows"></tbody>
+            </table>
+          </div>
+          <a
+            class="source-link"
+            href="https://github.com/battina1999/settlement-reconciliation/blob/main/sql/04_issues.sql"
+            >Read the SQL checks ↗</a
+          >
+        </section>
+        <footer>
+          All records and errors in this workbench were generated for this
+          project. Purchase captures only. Amounts are stored as integer cents.
+          <a
+            href="https://github.com/battina1999/settlement-reconciliation/blob/main/docs/contract.md"
+            >Input contract & limitations ↗</a
+          >
+        </footer>
+      </div>
+    </main>
+    <dialog id="case-dialog" aria-labelledby="case-title">
+      <div class="dialog-heading">
+        <p class="eyebrow">SOURCE EVIDENCE</p>
+        <button id="close-case" aria-label="Close case">✕</button>
+      </div>
+      <h2 id="case-title"></h2>
+      <p id="case-reason" class="case-reason"></p>
+      <div id="case-amounts" class="case-amounts"></div>
+      <h3>Imported records</h3>
+      <p class="quiet">
+        All versions for the source key and its related payment or payout. The
+        highest revision takes precedence. Conflicting highest revisions stay
+        quarantined.
+      </p>
+      <div id="case-records"></div>
+    </dialog>
+    <script src="app.js"></script>
+  </body>
+</html>
