@@ -20,6 +20,38 @@ The correction delivery adds 15 ledger payments that arrived after their settlem
 
 Replaying all six files imports zero rows and produces the same report. The demo checks that equality before writing the dashboard data. [Generator](src/settlement_reconciliation/synthetic.py) · [Demo runner](scripts/run_demo.py) · [Published results](docs/data/demo.json)
 
+## One discrepancy, from source row to correction
+
+This is **independent portfolio work using synthetic records**. It does not contain employer, customer or processor data.
+
+I use payment `M1/P000063` to show how the review queue explains a difference. Both source records have currency `USD` and business date `2026-01-11`. The settlement is `S000063`, under payout `OUT_M1_USD_20260111`.
+
+| Source | Data row | Revision | Gross cents | Fee cents | Net cents |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Initial `ledger.csv` | 63 | 1 | 311717 | 9070 | 302647 |
+| Initial `settlements.csv` | 3 | 1 | 311717 | 9207 | 302510 |
+| Correction `settlements.csv` | 63 | 2 | 311717 | 9070 | 302647 |
+
+Row numbers exclude the CSV header. Net is gross minus fee.
+
+The initial settlement fee is 137 cents higher than the ledger fee. The queue opens `payment_amount_mismatch`: expected net **$3,026.47**, observed net **$3,025.10**, variance **−$1.37**. Its evidence includes both original rows.
+
+This is the [amount-check condition](sql/04_issues.sql), narrowed to that payment:
+
+```sql
+SELECT merchant_id, payment_id, expected_net, observed_net,
+       observed_net - expected_net AS variance_cents
+FROM matched_payments
+WHERE merchant_id = 'M1'
+  AND payment_id = 'P000063'
+  AND ledger_currency = settlement_currency
+  AND (expected_gross <> observed_gross OR expected_fee <> observed_fee);
+```
+
+The later synthetic delivery keeps the same settlement ID and supplies revision 2 with the corrected fee. The higher revision becomes current; the original row stays in the source history. Both nets then equal 302647 cents, and this payment no longer appears in the corrected issue queue.
+
+[Published before/after results](docs/data/demo.json) · [Correction generator](src/settlement_reconciliation/synthetic.py) · [Revision rules](docs/contract.md)
+
 ## Run it
 
 With Python 3.10 or later installed, run this from the repository root.
