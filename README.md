@@ -87,6 +87,25 @@ Each source argument accepts multiple files. A later invocation can supply just 
 
 The current tradeoff is a complete rebuild of the issue and balance tables after incrementally resolving source records. That keeps old corrections and changed payout references easy to reason about at this scale. A larger deployment would need measured partitioning and concurrency requirements before changing that design.
 
+## Try three failure cases
+
+I use these small synthetic cases to check what survives a retry or a failed import. After `make demo` has installed the dependencies, run this from the repository root:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m pytest -q tests/test_reconciliation.py \
+  -k 'file_replay_and_duplicate_rows_preserve_amounts or conflict_quarantines_then_higher_revision_resolves or transform_failure_rolls_back_intake_and_report'
+```
+
+| Case | What the test checks |
+| --- | --- |
+| The same file arrives twice | The replay loads zero files and zero rows, reconsiders zero keys, and leaves the report unchanged. A repeated row in a different file still counts once in the ledger total. |
+| Two rows disagree at the same revision | Both rows use `M1/P1`, revision 1, but gross amounts differ by one cent. The key is quarantined and excluded from the clean ledger. Revision 2 restores one clean record and removes the conflict check. |
+| SQL fails after intake | The test first saves a report, then replaces a temporary copy of the final SQL step with a query against a missing table. Importing revision 2 raises an error; the batch counts, raw-row counts and report remain equal to the saved state. |
+
+These are three isolated tests, each using a temporary database. They exercise the same importer and SQL used by the demo. [Read the tests](tests/test_reconciliation.py) · [Transaction boundary](src/settlement_reconciliation/engine.py) · [Revision resolution](sql/02_resolve.sql)
+
+The guarantees here cover this local, single-writer DuckDB application. The tests do not establish behavior under distributed ingestion or multiple simultaneous writers.
+
 ## Checks I run
 
 The tests cover cents, duplicate files and rows, out-of-order revisions, conflicting source IDs, changed payment references in the evidence view, currency mismatches, gross/fee differences that cancel out at net, multiple settlements, malformed inputs and transaction rollback after a transformation fails. CI also runs the full 12,000-payment demo and checks that the published JSON can be reproduced exactly. [Tests](tests/test_reconciliation.py) · [CI workflow](.github/workflows/ci.yml)
